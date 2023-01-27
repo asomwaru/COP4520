@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::thread::JoinHandle;
 use std::time::Instant;
 
 fn main() {
@@ -7,42 +10,63 @@ fn main() {
     let start = Instant::now();
     let small_sieve = get_sieve(sqrt);
 
-    let mut primes: Vec<usize> = small_sieve.clone();
+    let primes = Arc::new(Mutex::new(small_sieve.clone()));
 
     let segments = 8;
     let segment_size: usize = (max_n - sqrt) / segments;
+    let mut threads: Vec<JoinHandle<()>> = Vec::new();
 
     for i in 0..segments {
-        let start = sqrt + i * segment_size;
-        let end = if sqrt + segment_size * (i + 1) < max_n {
-            sqrt + segment_size * (i + 1)
-        } else {
-            max_n
-        };
+        let arc_sieve = Arc::new(small_sieve.clone());
+        let prime_clone = primes.clone();
 
-        let mut sieve = vec![true; segment_size];
+        let thread = std::thread::spawn(move || {
+            let sqrt_sieve = arc_sieve.clone();
 
-        for prime in &small_sieve {
-            let lowest_multiple = if (start / prime) * prime >= start {
-                (start / prime) * prime
+            let start = sqrt + i * segment_size;
+            let end = if sqrt + segment_size * (i + 1) < max_n {
+                sqrt + segment_size * (i + 1)
             } else {
-                (start / prime) * prime + prime
+                max_n
             };
 
-            for i in (lowest_multiple..(end + 1)).step_by(*prime as usize) {
-                if i - start < segment_size {
-                    sieve[(i - start) as usize] = false;
+            let mut sieve = vec![true; segment_size];
+
+            for prime in sqrt_sieve.iter() {
+                let lowest_multiple = if (start / prime) * prime >= start {
+                    (start / prime) * prime
+                } else {
+                    (start / prime) * prime + prime
+                };
+
+                for i in (lowest_multiple..(end + 1)).step_by(*prime as usize) {
+                    if i - start < segment_size {
+                        sieve[(i - start) as usize] = false;
+                    }
                 }
             }
-        }
-        primes.append(&mut convert_to_num(&sieve, start));
+            prime_clone
+                .lock()
+                .unwrap()
+                .append(&mut convert_to_num(&sieve, start));
+        });
+
+        threads.push(thread);
+    }
+
+    for thread in threads {
+        thread.join().unwrap();
     }
 
     let end = start.elapsed();
+
+    let mut new_primes = primes.lock().unwrap().clone();
+    new_primes.sort();
+
     println!("Time taken: {:?}", end);
-    println!("Primes: {:?}", primes.len());
-    println!("Sum: {:?}", primes.iter().sum::<usize>());
-    println!("Last 10: {:#?}", &primes[primes.len() - 10..]);
+    println!("Primes: {:?}", new_primes.len());
+    println!("Sum: {:?}", new_primes.iter().sum::<usize>());
+    println!("Last 10: {:#?}", &new_primes[(new_primes.len() - 10)..]);
 }
 
 fn convert_to_num(sieve: &Vec<bool>, start: usize) -> Vec<usize> {
