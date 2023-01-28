@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread::JoinHandle;
@@ -5,7 +7,7 @@ use std::time::Instant;
 
 fn main() {
     let max_n: usize = 100_000_000;
-    let sqrt = f64::sqrt(max_n as f64).ceil() as usize + 1;
+    let sqrt = f64::sqrt(max_n as f64).ceil() as usize;
 
     let start = Instant::now();
     let small_sieve = get_sieve(sqrt);
@@ -63,10 +65,20 @@ fn main() {
     let mut new_primes = primes.lock().unwrap().clone();
     new_primes.sort();
 
-    println!("Time taken: {:?}", end);
-    println!("Primes: {:?}", new_primes.len());
-    println!("Sum: {:?}", new_primes.iter().sum::<usize>());
-    println!("Last 10: {:#?}", &new_primes[(new_primes.len() - 10)..]);
+    let mut out_file = File::create("primes.txt").unwrap();
+
+    [
+        format!("Time taken: {:?}", end),
+        format!("Primes: {:?}", new_primes.len()),
+        format!("Sum: {:?}", new_primes.iter().sum::<usize>()),
+        format!("Last 10: {:#?}", &new_primes[(new_primes.len() - 10)..]),
+    ]
+    .iter()
+    .for_each(|msg| {
+        out_file
+            .write_all((msg.to_owned() + "\n").as_bytes())
+            .unwrap()
+    });
 }
 
 fn convert_to_num(sieve: &Vec<bool>, start: usize) -> Vec<usize> {
