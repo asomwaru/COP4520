@@ -5,17 +5,19 @@ use std::sync::Mutex;
 use std::thread::JoinHandle;
 use std::time::Instant;
 
+const MAX_N: usize = 100000000;
+const THREAD_COUNT: usize = 8;
+
 fn main() {
-    let max_n: usize = 100_000_000;
-    let sqrt = f64::sqrt(max_n as f64).ceil() as usize;
+    let sqrt = f64::sqrt(MAX_N as f64).ceil() as usize;
 
     let start = Instant::now();
     let small_sieve = get_sieve(sqrt);
 
     let primes = Arc::new(Mutex::new(small_sieve.clone()));
 
-    let segments = 8;
-    let segment_size: usize = (max_n - sqrt) / segments;
+    let segments = THREAD_COUNT as usize;
+    let segment_size: usize = (MAX_N - sqrt) / segments;
     let mut threads: Vec<JoinHandle<()>> = Vec::new();
 
     for i in 0..segments {
@@ -26,10 +28,10 @@ fn main() {
             let sqrt_sieve = arc_sieve.clone();
 
             let start = sqrt + i * segment_size;
-            let end = if sqrt + segment_size * (i + 1) < max_n {
+            let end = if sqrt + segment_size * (i + 1) < MAX_N {
                 sqrt + segment_size * (i + 1)
             } else {
-                max_n
+                MAX_N
             };
 
             let mut sieve = vec![true; segment_size];
